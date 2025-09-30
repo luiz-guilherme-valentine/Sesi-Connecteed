@@ -115,23 +115,25 @@
 
   <script>
     function validarEmail(email) {
-      // Regex: pelo menos 2 números diferentes + domínio fixo
-      const regex = /^(?!.*(\d)\1{5,})(\d{5,10})@alunosesimg\.com\.br$/;
+      // Regex: 5 a 10 dígitos seguidos do domínio institucional
+      const regex = /^(\d{5,10})@alunosesimg\.com\.br$/;
       return regex.test(email);
     }
 
     function entrarAluno() {
       const email = document.getElementById("email").value.trim();
+
       if (!validarEmail(email)) {
         alert("Email inválido! Use o formato correto: 0001056131@alunosesimg.com.br");
         return;
       }
-      // Redireciona com tipo=aluno
-      window.location.href = "noticias.html?tipo=aluno";
+
+      // Redireciona para noticias.html passando tipo=aluno e email
+      window.location.href = "noticias.html?tipo=aluno&email=" + encodeURIComponent(email);
     }
 
     function entrarVisitante() {
-      // Redireciona com tipo=visitante
+      // Redireciona para noticias.html passando tipo=visitante
       window.location.href = "noticias.html?tipo=visitante";
     }
   </script>

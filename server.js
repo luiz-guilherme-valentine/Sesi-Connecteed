@@ -1,47 +1,65 @@
 const express = require("express");
-const fs = require("fs");
 const cors = require("cors");
+const bodyParser = require("body-parser");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-app.use(cors());
-app.use(express.json());
-
-const DATA_FILE = "noticias.json";
-
-function carregarNoticias() {
-  if (fs.existsSync(DATA_FILE)) {
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+// Configuração do Multer (upload de PDFs)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath);
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = Date.now() + "-" + file.originalname;
+    cb(null, uniqueName);
   }
-  return [];
-}
+});
+const upload = multer({ storage: storage });
 
+// Middlewares
+app.use(cors());
+app.use(bodyParser.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// "Banco de dados" simples em memória
+let noticias = [];
+
+// Rota para listar notícias
 app.get("/noticias", (req, res) => {
-  res.json(carregarNoticias());
+  res.json(noticias);
 });
 
-app.post("/noticias", (req, res) => {
-  const noticias = carregarNoticias();
+// Rota para adicionar notícia
+app.post("/noticias", upload.single("pdf"), (req, res) => {
   const { titulo, conteudo, autor } = req.body;
+  let pdfUrl = null;
 
-  if (!titulo || !conteudo || !autor) {
-    return res.status(400).json({ error: "Campos obrigatórios: titulo, conteudo, autor" });
+  if (req.file) {
+    pdfUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
   }
 
-  const novaNoticia = {
-    id: Date.now(),
+  const noticia = {
+    id: noticias.length + 1,
     titulo,
     conteudo,
     autor,
-    data: new Date().toISOString()
+    pdfUrl,
+    data: new Date()
   };
 
-  noticias.push(novaNoticia);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(noticias, null, 2));
-
-  res.status(201).json(novaNoticia);
+  noticias.push(noticia);
+  res.json(noticia);
 });
 
+// Inicia o servidor
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });

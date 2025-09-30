@@ -41,32 +41,19 @@
     }
 
     .login-container {
-      max-width: 450px;
-      width: 90%;
-      margin: 40px auto;
+      max-width: 500px;
+      margin: 50px auto;
       background: rgba(0,0,0,0.3);
-      padding: 35px;
+      padding: 40px;
       border-radius: 20px;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
       text-align: center;
-      animation: bannerGlow 5s ease-in-out infinite alternate;
+      transition: transform 0.3s;
     }
-    @keyframes bannerGlow {
-      0% { box-shadow: 0 8px 25px rgba(0,0,0,0.6); }
-      50% { box-shadow: 0 15px 40px rgba(0,0,0,0.9); }
-      100% { box-shadow: 0 8px 25px rgba(0,0,0,0.6); }
-    }
-
-    .login-container h2 {
-      margin-bottom: 20px;
-      font-size: 28px;
-      color: #00ffcc;
-      text-shadow: 2px 2px 8px #000;
-    }
-
+    .login-container:hover { transform: translateY(-5px); }
     .login-container input {
       width: 90%;
-      padding: 14px;
+      padding: 15px;
       margin: 12px 0;
       border-radius: 12px;
       border: none;
@@ -74,15 +61,10 @@
       outline: none;
       transition: 0.3s;
     }
-    .login-container input:focus {
-      box-shadow: 0 0 15px #00b050;
-    }
-
+    .login-container input:focus { box-shadow: 0 0 15px #00b050; }
     .login-container button {
-      width: 90%;
-      padding: 15px;
+      padding: 15px 25px;
       font-size: 18px;
-      margin: 12px 0;
       border-radius: 12px;
       border: none;
       background: linear-gradient(90deg, #0044cc, #00b050);
@@ -91,6 +73,7 @@
       font-weight: bold;
       transition: all 0.4s;
       box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+      margin: 10px;
     }
     .login-container button:hover {
       background: linear-gradient(90deg, #00b050, #0044cc);
@@ -99,7 +82,6 @@
     }
 
     footer {
-      margin-top: auto;
       text-align: center;
       padding: 25px;
       background: linear-gradient(90deg, #0044cc, #00b050);
@@ -108,60 +90,49 @@
       color: #fff;
       font-weight: bold;
       text-shadow: 1px 1px 3px #000;
-    }
-
-    @media (max-width: 768px) {
-      header h1 { font-size: 30px; }
-      .login-container h2 { font-size: 22px; }
-      .login-container { margin: 20px 15px; padding: 25px; }
+      margin-top: auto;
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Sesi Connected</h1>
+    <h1>Sesi Connected - Login</h1>
   </header>
 
-  <div class="login-container">
-    <h2>Login</h2>
-    <form onsubmit="return validarEmail(event)">
-      <input type="text" id="email" placeholder="E-mail institucional" required>
-      <input type="password" id="senha" placeholder="Senha" required>
-      <button type="submit">Entrar</button>
-    </form>
-    <button onclick="entrarVisitante()">Entrar como visitante</button>
-  </div>
+  <main>
+    <div class="login-container">
+      <h2>Entrar</h2>
+      <input type="text" id="email" placeholder="Digite seu email institucional">
+      <br>
+      <button onclick="entrarAluno()">Entrar como Aluno</button>
+      <button onclick="entrarVisitante()">Entrar como Visitante</button>
+    </div>
+  </main>
 
   <footer>
     © 2025 Sesi Connected | Todos os direitos reservados
   </footer>
 
   <script>
-    function validarEmail(e) {
-      e.preventDefault();
-      const email = document.getElementById('email').value.trim();
-      const regex = /^[0-9]{10}@alunosesimg\.com\.br$/;
+    function validarEmail(email) {
+      // Regex: pelo menos 2 números diferentes + domínio fixo
+      const regex = /^(?!.*(\d)\1{5,})(\d{5,10})@alunosesimg\.com\.br$/;
+      return regex.test(email);
+    }
 
-      if (!regex.test(email)) {
-        alert("O e-mail deve conter 10 números variados seguidos de @alunosesimg.com.br");
-        return false;
+    function entrarAluno() {
+      const email = document.getElementById("email").value.trim();
+      if (!validarEmail(email)) {
+        alert("Email inválido! Use o formato correto: 0001056131@alunosesimg.com.br");
+        return;
       }
-
-      // Verifica se todos os números não são iguais
-      const numeros = email.split("@")[0];
-      if (/^(\d)\1+$/.test(numeros)) {
-        alert("Os números não podem ser todos iguais!");
-        return false;
-      }
-
-      alert("Login realizado com sucesso!");
-      return true;
+      // Redireciona com tipo=aluno
+      window.location.href = "noticias.html?tipo=aluno";
     }
 
     function entrarVisitante() {
-      alert("Entrando como visitante...");
-      // redirecionar para a página inicial de notícias
-      window.location.href = "home.html";
+      // Redireciona com tipo=visitante
+      window.location.href = "noticias.html?tipo=visitante";
     }
   </script>
 </body>

@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sesi Connected - Home</title>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <style>
     body {
       margin: 0;
@@ -54,17 +53,20 @@
       border-radius: 20px;
       box-shadow: 0 6px 20px rgba(0,0,0,0.5);
       transition: transform 0.3s;
-      max-height: 400px;
-      overflow-y: auto;
-      cursor: pointer;
     }
     .noticia:hover { transform: translateY(-3px); }
     .noticia h3 { color: #00b050; margin-bottom: 10px; text-shadow: 1px 1px 5px #000; }
     .noticia p { font-size: 16px; line-height: 1.5; }
     .noticia small { color: #ffeb3b; text-shadow: 1px 1px 3px #000; }
-    canvas { max-width: 100%; border-radius: 12px; margin-top: 10px; }
+    .noticia iframe {
+      width: 100%;
+      height: 300px;
+      border: none;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
 
-    #upload-container {
+    .upload-container {
       background: rgba(0,0,0,0.3);
       padding: 30px;
       border-radius: 20px;
@@ -72,9 +74,9 @@
       margin-bottom: 50px;
       transition: transform 0.3s;
     }
-    #upload-container:hover { transform: translateY(-5px); }
-    #upload-container input,
-    #upload-container textarea {
+    .upload-container:hover { transform: translateY(-5px); }
+    .upload-container input,
+    .upload-container textarea {
       width: 90%;
       padding: 14px;
       margin: 12px 0;
@@ -84,9 +86,9 @@
       outline: none;
       transition: 0.3s;
     }
-    #upload-container input:focus,
-    #upload-container textarea:focus { box-shadow: 0 0 15px #00b050; }
-    #upload-container button {
+    .upload-container input:focus,
+    .upload-container textarea:focus { box-shadow: 0 0 15px #00b050; }
+    .upload-container button {
       padding: 15px 25px;
       font-size: 18px;
       border-radius: 12px;
@@ -98,7 +100,7 @@
       transition: all 0.4s;
       box-shadow: 0 5px 15px rgba(0,0,0,0.4);
     }
-    #upload-container button:hover {
+    .upload-container button:hover {
       background: linear-gradient(90deg, #00b050, #0044cc);
       transform: scale(1.05);
       box-shadow: 0 8px 25px rgba(0,0,0,0.6);
@@ -120,7 +122,7 @@
       header h1 { font-size: 30px; }
       .noticia h3 { font-size: 20px; }
       .noticia p { font-size: 14px; }
-      #upload-container { padding: 20px; }
+      .upload-container { padding: 20px; }
     }
   </style>
 </head>
@@ -139,25 +141,28 @@
 
   <script>
     const API_URL = "https://sesi-connecteed.onrender.com/noticias";
-    const ehAluno = true; // alterar no login para true (aluno) ou false (visitante)
 
-    // Se for aluno, cria o container de upload
+    // Verifica se é aluno ou visitante pela URL (?tipo=aluno ou ?tipo=visitante)
+    const params = new URLSearchParams(window.location.search);
+    const ehAluno = params.get("tipo") === "aluno";
+
+    // Cria dinamicamente o container de upload apenas se for aluno
     if (ehAluno) {
       const main = document.querySelector("main");
       const uploadDiv = document.createElement("div");
-      uploadDiv.id = "upload-container";
+      uploadDiv.classList.add("upload-container");
       uploadDiv.innerHTML = `
         <h2>Enviar notícia</h2>
         <input type="text" id="titulo" placeholder="Título da notícia" required>
-        <textarea id="conteudo" placeholder="Conteúdo da notícia (opcional se enviar PDF)" rows="5"></textarea>
+        <textarea id="conteudo" placeholder="Conteúdo da notícia (se não enviar PDF)" rows="5"></textarea>
+        <input type="file" id="pdf" accept="application/pdf">
         <input type="text" id="autor" placeholder="Seu nome" required>
-        <input type="file" id="pdfFile" accept="application/pdf">
         <button onclick="enviarNoticia()">Enviar</button>
       `;
       main.prepend(uploadDiv);
     }
 
-    // Função para carregar notícias
+    // Carregar notícias
     async function carregarNoticias() {
       try {
         const res = await fetch(API_URL);
@@ -165,59 +170,46 @@
         const lista = document.getElementById("lista-noticias");
         lista.innerHTML = "";
 
-        if(noticias.length === 0){
+        if (noticias.length === 0) {
           lista.innerHTML = "<p style='text-align:center; color:#ffeb3b;'>Nenhuma notícia disponível.</p>";
           return;
         }
 
         noticias.reverse().forEach(n => {
-          const div = document.createElement("div");
-          div.className = "noticia";
-
-          div.innerHTML = `
-            <h3>${n.titulo}</h3>
-            <small>Por ${n.autor} em ${new Date(n.data).toLocaleString()}</small>
-          `;
-
+          let conteudoHtml = "";
           if (n.pdfUrl) {
-            // Render preview da 1ª página do PDF
-            const canvas = document.createElement("canvas");
-            div.appendChild(canvas);
-
-            const loadingTask = pdfjsLib.getDocument(n.pdfUrl);
-            loadingTask.promise.then(pdf => {
-              pdf.getPage(1).then(page => {
-                const viewport = page.getViewport({ scale: 1.0 });
-                const context = canvas.getContext("2d");
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-
-                page.render({ canvasContext: context, viewport: viewport });
-              });
-            });
-
-            div.onclick = () => window.open(n.pdfUrl, "_blank");
+            conteudoHtml = `
+              <iframe src="${n.pdfUrl}#page=1"></iframe>
+              <p><a href="${n.pdfUrl}" target="_blank" style="color:#00ffff;">Abrir PDF completo</a></p>
+            `;
           } else {
-            div.innerHTML += `<p>${n.conteudo}</p>`;
+            conteudoHtml = `<p>${n.conteudo}</p>`;
           }
 
-          lista.appendChild(div);
+          lista.innerHTML += `
+            <div class="noticia">
+              <h3>${n.titulo}</h3>
+              ${conteudoHtml}
+              <small>Por ${n.autor} em ${new Date(n.data).toLocaleString()}</small>
+            </div>
+          `;
         });
       } catch (err) {
         console.error(err);
-        document.getElementById("lista-noticias").innerHTML = "<p style='text-align:center; color:red;'>Erro ao carregar notícias.</p>";
+        document.getElementById("lista-noticias").innerHTML =
+          "<p style='text-align:center; color:red;'>Erro ao carregar notícias.</p>";
       }
     }
 
-    // Função para enviar notícia
+    // Enviar notícia
     async function enviarNoticia() {
       const titulo = document.getElementById("titulo").value.trim();
       const conteudo = document.getElementById("conteudo").value.trim();
       const autor = document.getElementById("autor").value.trim();
-      const pdfFile = document.getElementById("pdfFile").files[0];
+      const pdf = document.getElementById("pdf").files[0];
 
-      if(!titulo || !autor){
-        alert("Preencha pelo menos título e autor!");
+      if (!titulo || !autor || (!conteudo && !pdf)) {
+        alert("Preencha o título, autor e conteúdo ou envie um PDF!");
         return;
       }
 
@@ -225,23 +217,27 @@
       formData.append("titulo", titulo);
       formData.append("conteudo", conteudo);
       formData.append("autor", autor);
-      if (pdfFile) formData.append("pdf", pdfFile);
+      if (pdf) formData.append("pdf", pdf);
 
       try {
-        const res = await fetch(API_URL, { method: "POST", body: formData });
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: formData
+        });
 
-        if(res.ok){
+        if (res.ok) {
           alert("Notícia enviada com sucesso!");
           carregarNoticias();
         } else {
           alert("Erro ao enviar notícia.");
         }
-      } catch(err){
+      } catch (err) {
         console.error(err);
         alert("Erro ao enviar notícia.");
       }
     }
 
+    // Inicializa
     carregarNoticias();
   </script>
 </body>

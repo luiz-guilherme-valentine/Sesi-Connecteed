@@ -55,16 +55,35 @@
       transition: transform 0.3s;
     }
     .noticia:hover { transform: translateY(-3px); }
-    .noticia h3 { color: #00b050; margin-bottom: 10px; text-shadow: 1px 1px 5px #000; }
+    .noticia h3 { 
+      color: #FFD700; 
+      margin-bottom: 10px; 
+      text-shadow: 2px 2px 6px #000; 
+    }
     .noticia p { font-size: 16px; line-height: 1.5; }
     .noticia small { color: #ffeb3b; text-shadow: 1px 1px 3px #000; }
-    .noticia iframe {
-      width: 100%;
-      height: 400px;
+    .noticia img {
+      max-width: 100%;
       border-radius: 12px;
-      margin-bottom: 10px;
-      border: none;
+      margin-bottom: 15px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+    }
+
+    .delete-btn {
+      margin-top: 12px;
+      padding: 10px 18px;
+      background: linear-gradient(90deg, #cc0000, #ff4444);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+    .delete-btn:hover {
+      background: linear-gradient(90deg, #ff4444, #cc0000);
+      transform: scale(1.05);
     }
 
     .upload-container {
@@ -142,14 +161,15 @@
     const API_URL = "https://sesi-connecteed.onrender.com/noticias";
     const params = new URLSearchParams(window.location.search);
     const ehAluno = params.get("tipo") === "aluno";
+    const email = params.get("email") || "";
+    const ehAdmin = email === "0001056131@alunosesimg.com.br";
 
     const main = document.getElementById("conteudo-principal");
 
-    // Lista de notícias
     const listaNoticias = document.createElement("div");
     listaNoticias.id = "lista-noticias";
 
-    // Se for aluno, cria também o container de upload
+    // Se for aluno, mostra upload
     if (ehAluno) {
       const uploadDiv = document.createElement("div");
       uploadDiv.classList.add("upload-container");
@@ -158,6 +178,7 @@
         <input type="text" id="titulo" placeholder="Título da notícia" required>
         <textarea id="conteudo" placeholder="Conteúdo da notícia (se não enviar PDF)" rows="5"></textarea>
         <input type="file" id="pdf" accept="application/pdf">
+        <input type="file" id="capa" accept="image/*" required>
         <input type="text" id="autor" placeholder="Seu nome" required>
         <button onclick="enviarNoticia()">Enviar</button>
       `;
@@ -167,7 +188,6 @@
     // Sempre mostra a lista de notícias
     main.appendChild(listaNoticias);
 
-    // Função para carregar notícias
     async function carregarNoticias() {
       try {
         const res = await fetch(API_URL);
@@ -182,21 +202,30 @@
         noticias.reverse().forEach(n => {
           let conteudoHtml = "";
           if (n.pdfUrl) {
-            conteudoHtml = `
-              <iframe src="${n.pdfUrl}#page=1"></iframe>
-              <p><a href="${n.pdfUrl}" target="_blank" style="color:#00ffff;">Abrir PDF completo</a></p>
-            `;
+            conteudoHtml = `<p><a href="${n.pdfUrl}" target="_blank" style="color:#00ffff;">Abrir PDF completo</a></p>`;
           } else {
             conteudoHtml = `<p>${n.conteudo}</p>`;
           }
 
-          listaNoticias.innerHTML += `
-            <div class="noticia">
-              <h3>${n.titulo}</h3>
-              ${conteudoHtml}
-              <small>Por ${n.autor} em ${new Date(n.data).toLocaleString()}</small>
-            </div>
+          const noticiaDiv = document.createElement("div");
+          noticiaDiv.classList.add("noticia");
+          noticiaDiv.innerHTML = `
+            ${n.capaUrl ? `<img src="${n.capaUrl}" alt="Capa da notícia">` : ""}
+            <h3>${n.titulo}</h3>
+            ${conteudoHtml}
+            <small>Por ${n.autor} em ${new Date(n.data).toLocaleString()}</small>
           `;
+
+          // Só cria botão se for admin
+          if (ehAdmin) {
+            const btn = document.createElement("button");
+            btn.classList.add("delete-btn");
+            btn.textContent = "Deletar notícia";
+            btn.onclick = () => deletarNoticia(n._id);
+            noticiaDiv.appendChild(btn);
+          }
+
+          listaNoticias.appendChild(noticiaDiv);
         });
       } catch (err) {
         console.error(err);
@@ -204,15 +233,15 @@
       }
     }
 
-    // Função para enviar notícia (só existe se for aluno)
     async function enviarNoticia() {
       const titulo = document.getElementById("titulo").value.trim();
       const conteudo = document.getElementById("conteudo").value.trim();
       const autor = document.getElementById("autor").value.trim();
       const pdf = document.getElementById("pdf").files[0];
+      const capa = document.getElementById("capa").files[0];
 
-      if (!titulo || !autor || (!conteudo && !pdf)) {
-        alert("Preencha o título, autor e conteúdo ou envie um PDF!");
+      if (!titulo || !autor || !capa || (!conteudo && !pdf)) {
+        alert("Preencha título, autor, capa e conteúdo ou envie um PDF!");
         return;
       }
 
@@ -221,6 +250,7 @@
       formData.append("conteudo", conteudo);
       formData.append("autor", autor);
       if (pdf) formData.append("pdf", pdf);
+      if (capa) formData.append("capa", capa);
 
       try {
         const res = await fetch(API_URL, { method: "POST", body: formData });
@@ -236,7 +266,22 @@
       }
     }
 
-    // Inicializa
+    async function deletarNoticia(id) {
+      if (!confirm("Tem certeza que deseja deletar esta notícia?")) return;
+      try {
+        const res = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          alert("Notícia deletada!");
+          carregarNoticias();
+        } else {
+          alert("Erro ao deletar notícia.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao deletar notícia.");
+      }
+    }
+
     carregarNoticias();
   </script>
 </body>

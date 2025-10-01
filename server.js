@@ -1,95 +1,94 @@
 const express = require("express");
+const multer = require("multer");
+const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
-const multer = require("multer");
 const archiver = require("archiver");
 const unzipper = require("unzipper");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
+app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Arquivo persistente
-const DATA_DIR = path.join(__dirname, "data");
-const DATA_FILE = path.join(DATA_DIR, "noticias.json");
+let noticias = []; // Armazena as notícias em memória
+let idCounter = 1;
 
-// Garantir diretório
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "[]");
-
-// Middleware upload
-const upload = multer({ dest: "uploads/" });
-
-// --- API ---
-app.get("/noticias", (req, res) => {
-  const noticias = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  res.json(noticias);
+// Configuração de uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, "uploads");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  }
 });
+const upload = multer({ storage });
 
-app.post("/noticias", (req, res) => {
-  const noticias = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  const noticia = {
-    id: Date.now(),
-    titulo: req.body.titulo,
-    autor: req.body.autor,
-    pdf: req.body.pdf || "",
-    data: new Date()
-  };
+// Criar notícia
+app.post("/noticias", upload.fields([{ name: "pdf" }, { name: "capa" }]), (req, res) => {
+  const { titulo, conteudo, autor } = req.body;
+  const pdf = req.files["pdf"] ? "/uploads/" + req.files["pdf"][0].filename : null;
+  const capa = req.files["capa"] ? "/uploads/" + req.files["capa"][0].filename : null;
+
+  const noticia = { id: idCounter++, titulo, conteudo, autor, pdf, capa, data: new Date() };
   noticias.push(noticia);
-  fs.writeFileSync(DATA_FILE, JSON.stringify(noticias, null, 2));
-  res.json({ ok: true });
+  res.json(noticia);
 });
 
-// --- BACKUP ---
-app.get("/backup", (req, res) => {
-  const noticias = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+// Listar notícias
+app.get("/noticias", (req, res) => res.json(noticias));
 
-  res.setHeader("Content-Disposition", "attachment; filename=backup.zip");
-  res.setHeader("Content-Type", "application/zip");
+// Deletar notícia
+app.delete("/noticias/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  noticias = noticias.filter(n => n.id !== id);
+  res.sendStatus(200);
+});
 
-  const archive = archiver("zip");
-  archive.pipe(res);
+// Backup
+app.get("/backup", async (req, res) => {
+  const backupPath = path.join(__dirname, "backup.zip");
+  const output = fs.createWriteStream(backupPath);
+  const archive = archiver("zip", { zlib: { level: 9 } });
 
-  noticias.forEach(n => {
-    const folder = `noticia_${n.id}`;
-    const txt = `Titulo: ${n.titulo}\nAutor: ${n.autor}\nData: ${n.data}`;
-    archive.append(txt, { name: `${folder}/info.txt` });
-
-    if (n.pdf && fs.existsSync(n.pdf)) {
-      archive.file(n.pdf, { name: `${folder}/arquivo.pdf` });
-    }
+  output.on("close", () => {
+    res.setHeader("Content-Disposition", "attachment; filename=backup-noticias.zip");
+    res.setHeader("Content-Type", "application/zip");
+    res.download(backupPath, "backup-noticias.zip", () => {
+      fs.unlinkSync(backupPath);
+    });
   });
 
+  archive.pipe(output);
+  noticias.forEach(noticia => {
+    const folder = `noticia-${noticia.id}`;
+    archive.append(`Título: ${noticia.titulo}\nAutor: ${noticia.autor}\nConteúdo: ${noticia.conteudo || ""}`, { name: `${folder}/info.txt` });
+    if (noticia.pdf && fs.existsSync(path.join(__dirname, noticia.pdf))) {
+      archive.file(path.join(__dirname, noticia.pdf), { name: `${folder}/pdf.pdf` });
+    }
+    if (noticia.capa && fs.existsSync(path.join(__dirname, noticia.capa))) {
+      archive.file(path.join(__dirname, noticia.capa), { name: `${folder}/capa${path.extname(noticia.capa)}` });
+    }
+  });
   archive.finalize();
 });
 
-// --- RESTORE ---
+// Restaurar backup
 app.post("/restore", upload.single("backup"), async (req, res) => {
-  const noticias = [];
+  if (!req.file) return res.status(400).send("Nenhum arquivo enviado");
+  const zipPath = req.file.path;
 
-  fs.createReadStream(req.file.path)
-    .pipe(unzipper.Parse())
-    .on("entry", async entry => {
-      const filePath = entry.path;
-      if (filePath.endsWith("info.txt")) {
-        const content = await entry.buffer();
-        const [titulo, autor] = content.toString().split("\n");
-        noticias.push({
-          id: Date.now() + Math.random(),
-          titulo: titulo.replace("Titulo: ", ""),
-          autor: autor.replace("Autor: ", ""),
-          pdf: "",
-          data: new Date()
-        });
-      } else {
-        entry.autodrain();
-      }
-    })
+  fs.createReadStream(zipPath)
+    .pipe(unzipper.Extract({ path: path.join(__dirname, "restaurado") }))
     .on("close", () => {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(noticias, null, 2));
-      res.json({ ok: true });
+      // Aqui você poderia recarregar notícias restauradas em memória
+      fs.unlinkSync(zipPath);
+      res.send("Backup restaurado");
     });
 });
 

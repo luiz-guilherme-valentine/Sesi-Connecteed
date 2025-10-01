@@ -14,8 +14,7 @@
       align-items: center;
       color: #fff;
       min-height: 100vh;
-      background: linear-gradient(270deg,
-        #0a1a3d, #3366ff, #001f3f, #00b050, #006400, #99ff99, #00ffff, #ffffff);
+      background: linear-gradient(270deg, #0a1a3d, #3366ff, #001f3f, #00b050, #006400, #99ff99, #00ffff, #ffffff);
       background-size: 1600% 1600%;
       animation: gradientFlow 30s ease infinite;
     }
@@ -24,7 +23,6 @@
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
-
     header {
       margin-top: 30px;
       text-align: center;
@@ -39,13 +37,11 @@
       text-shadow: 2px 2px 8px #000;
       color: #ffeb3b;
     }
-
     main {
       width: 90%;
       max-width: 900px;
       margin: 30px auto 50px;
     }
-
     .noticia {
       background: rgba(0,0,0,0.3);
       padding: 20px;
@@ -55,77 +51,9 @@
       transition: transform 0.3s;
     }
     .noticia:hover { transform: translateY(-3px); }
-    .noticia h3 { 
-      color: #FFD700; 
-      margin-bottom: 10px; 
-      text-shadow: 2px 2px 6px #000; 
-    }
+    .noticia h3 { color: #ffd700; margin-bottom: 10px; text-shadow: 1px 1px 5px #000; }
     .noticia p { font-size: 16px; line-height: 1.5; }
     .noticia small { color: #ffeb3b; text-shadow: 1px 1px 3px #000; }
-    .noticia img {
-      max-width: 100%;
-      border-radius: 12px;
-      margin-bottom: 15px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.4);
-    }
-
-    .delete-btn {
-      margin-top: 12px;
-      padding: 10px 18px;
-      background: linear-gradient(90deg, #cc0000, #ff4444);
-      border: none;
-      border-radius: 10px;
-      color: #fff;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.3s;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-    }
-    .delete-btn:hover {
-      background: linear-gradient(90deg, #ff4444, #cc0000);
-      transform: scale(1.05);
-    }
-
-    .upload-container {
-      background: rgba(0,0,0,0.3);
-      padding: 30px;
-      border-radius: 20px;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.6);
-      margin-bottom: 50px;
-      transition: transform 0.3s;
-    }
-    .upload-container:hover { transform: translateY(-5px); }
-    .upload-container input,
-    .upload-container textarea {
-      width: 90%;
-      padding: 14px;
-      margin: 12px 0;
-      border-radius: 12px;
-      border: none;
-      font-size: 16px;
-      outline: none;
-      transition: 0.3s;
-    }
-    .upload-container input:focus,
-    .upload-container textarea:focus { box-shadow: 0 0 15px #00b050; }
-    .upload-container button {
-      padding: 15px 25px;
-      font-size: 18px;
-      border-radius: 12px;
-      border: none;
-      background: linear-gradient(90deg, #0044cc, #00b050);
-      color: #fff;
-      cursor: pointer;
-      font-weight: bold;
-      transition: all 0.4s;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.4);
-    }
-    .upload-container button:hover {
-      background: linear-gradient(90deg, #00b050, #0044cc);
-      transform: scale(1.05);
-      box-shadow: 0 8px 25px rgba(0,0,0,0.6);
-    }
-
     footer {
       text-align: center;
       padding: 25px;
@@ -137,12 +65,13 @@
       text-shadow: 1px 1px 3px #000;
       margin-top: auto;
     }
-
-    @media (max-width: 768px) {
-      header h1 { font-size: 30px; }
-      .noticia h3 { font-size: 20px; }
-      .noticia p { font-size: 14px; }
-      .upload-container { padding: 20px; }
+    #admin-controls button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-weight: bold;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -151,134 +80,83 @@
     <h1>Sesi Connected - Home</h1>
   </header>
 
-  <main id="conteudo-principal"></main>
+  <!-- controles admin -->
+  <div id="admin-controls" style="display:none; text-align:center; margin:20px;">
+    <button onclick="fazerBackup()">📦 Fazer Backup de Notícias</button>
+    <input type="file" id="restoreInput" accept=".zip" style="display:none;" onchange="restaurarBackup(event)">
+    <button onclick="document.getElementById('restoreInput').click()">📂 Restaurar Backup</button>
+  </div>
+
+  <main>
+    <div id="lista-noticias"></div>
+  </main>
 
   <footer>
     © 2025 Sesi Connected | Todos os direitos reservados
   </footer>
 
   <script>
-    const API_URL = "https://sesi-connecteed.onrender.com/noticias";
+    const API_URL = "https://sesi-connecteed.onrender.com";
     const params = new URLSearchParams(window.location.search);
-    const ehAluno = params.get("tipo") === "aluno";
+    const tipo = params.get("tipo") || "visitante";
     const email = params.get("email") || "";
-    const ehAdmin = email === "0001056131@alunosesimg.com.br";
 
-    const main = document.getElementById("conteudo-principal");
-
-    const listaNoticias = document.createElement("div");
-    listaNoticias.id = "lista-noticias";
-
-    // Se for aluno, mostra upload
-    if (ehAluno) {
-      const uploadDiv = document.createElement("div");
-      uploadDiv.classList.add("upload-container");
-      uploadDiv.innerHTML = `
-        <h2>Enviar notícia</h2>
-        <input type="text" id="titulo" placeholder="Título da notícia" required>
-        <textarea id="conteudo" placeholder="Conteúdo da notícia (se não enviar PDF)" rows="5"></textarea>
-        <input type="file" id="pdf" accept="application/pdf">
-        <input type="file" id="capa" accept="image/*" required>
-        <input type="text" id="autor" placeholder="Seu nome" required>
-        <button onclick="enviarNoticia()">Enviar</button>
-      `;
-      main.appendChild(uploadDiv);
+    // Mostrar botões admin apenas se for admin
+    if (email === "0001056131@alunosesimg.com.br") {
+      document.getElementById("admin-controls").style.display = "block";
     }
 
-    // Sempre mostra a lista de notícias
-    main.appendChild(listaNoticias);
-
+    // Carregar notícias
     async function carregarNoticias() {
       try {
-        const res = await fetch(API_URL);
+        const res = await fetch(API_URL + "/noticias");
         const noticias = await res.json();
-        listaNoticias.innerHTML = "";
+        const lista = document.getElementById("lista-noticias");
+        lista.innerHTML = "";
 
-        if (noticias.length === 0) {
-          listaNoticias.innerHTML = "<p style='text-align:center; color:#ffeb3b;'>Nenhuma notícia disponível.</p>";
+        if(noticias.length === 0){
+          lista.innerHTML = "<p style='text-align:center; color:#ffeb3b;'>Nenhuma notícia disponível.</p>";
           return;
         }
 
         noticias.reverse().forEach(n => {
-          let conteudoHtml = "";
-          if (n.pdfUrl) {
-            conteudoHtml = `<p><a href="${n.pdfUrl}" target="_blank" style="color:#00ffff;">Abrir PDF completo</a></p>`;
-          } else {
-            conteudoHtml = `<p>${n.conteudo}</p>`;
-          }
-
-          const noticiaDiv = document.createElement("div");
-          noticiaDiv.classList.add("noticia");
-          noticiaDiv.innerHTML = `
-            ${n.capaUrl ? `<img src="${n.capaUrl}" alt="Capa da notícia">` : ""}
-            <h3>${n.titulo}</h3>
-            ${conteudoHtml}
-            <small>Por ${n.autor} em ${new Date(n.data).toLocaleString()}</small>
+          lista.innerHTML += `
+            <div class="noticia">
+              <h3>${n.titulo}</h3>
+              <p>${n.autor}</p>
+              <a href="${n.pdf}" target="_blank">📖 Ver PDF</a><br>
+              <small>Postado em ${new Date(n.data).toLocaleString()}</small>
+            </div>
           `;
-
-          // Só cria botão se for admin
-          if (ehAdmin) {
-            const btn = document.createElement("button");
-            btn.classList.add("delete-btn");
-            btn.textContent = "Deletar notícia";
-            btn.onclick = () => deletarNoticia(n._id);
-            noticiaDiv.appendChild(btn);
-          }
-
-          listaNoticias.appendChild(noticiaDiv);
         });
       } catch (err) {
         console.error(err);
-        listaNoticias.innerHTML = "<p style='text-align:center; color:red;'>Erro ao carregar notícias.</p>";
+        document.getElementById("lista-noticias").innerHTML = "<p style='text-align:center; color:red;'>Erro ao carregar notícias.</p>";
       }
     }
 
-    async function enviarNoticia() {
-      const titulo = document.getElementById("titulo").value.trim();
-      const conteudo = document.getElementById("conteudo").value.trim();
-      const autor = document.getElementById("autor").value.trim();
-      const pdf = document.getElementById("pdf").files[0];
-      const capa = document.getElementById("capa").files[0];
+    // Admin: fazer backup
+    function fazerBackup() {
+      window.location.href = API_URL + "/backup";
+    }
 
-      if (!titulo || !autor || !capa || (!conteudo && !pdf)) {
-        alert("Preencha título, autor, capa e conteúdo ou envie um PDF!");
-        return;
-      }
+    // Admin: restaurar backup
+    async function restaurarBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
 
       const formData = new FormData();
-      formData.append("titulo", titulo);
-      formData.append("conteudo", conteudo);
-      formData.append("autor", autor);
-      if (pdf) formData.append("pdf", pdf);
-      if (capa) formData.append("capa", capa);
+      formData.append("backup", file);
 
       try {
-        const res = await fetch(API_URL, { method: "POST", body: formData });
-        if (res.ok) {
-          alert("Notícia enviada com sucesso!");
-          carregarNoticias();
-        } else {
-          alert("Erro ao enviar notícia.");
-        }
+        await fetch(API_URL + "/restore", {
+          method: "POST",
+          body: formData
+        });
+        alert("Backup restaurado com sucesso!");
+        location.reload();
       } catch (err) {
-        console.error(err);
-        alert("Erro ao enviar notícia.");
-      }
-    }
-
-    async function deletarNoticia(id) {
-      if (!confirm("Tem certeza que deseja deletar esta notícia?")) return;
-      try {
-        const res = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          alert("Notícia deletada!");
-          carregarNoticias();
-        } else {
-          alert("Erro ao deletar notícia.");
-        }
-      } catch (err) {
-        console.error(err);
-        alert("Erro ao deletar notícia.");
+        alert("Erro ao restaurar backup");
       }
     }
 

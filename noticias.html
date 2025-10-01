@@ -65,13 +65,31 @@
       text-shadow: 1px 1px 3px #000;
       margin-top: auto;
     }
-    #admin-controls button {
-      padding: 10px 20px;
-      margin: 5px;
+    #upload-container, #admin-controls {
+      background: rgba(0,0,0,0.3);
+      padding: 20px;
+      border-radius: 15px;
+      margin: 20px 0;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+    #upload-container input, #upload-container textarea {
+      width: 95%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 10px;
+      border: none;
+      font-size: 16px;
+      outline: none;
+    }
+    #upload-container button, #admin-controls button {
+      padding: 12px 20px;
+      margin: 8px;
       font-weight: bold;
       border-radius: 10px;
       border: none;
       cursor: pointer;
+      background: linear-gradient(90deg, #0044cc, #00b050);
+      color: #fff;
     }
   </style>
 </head>
@@ -80,12 +98,7 @@
     <h1>Sesi Connected - Home</h1>
   </header>
 
-  <!-- controles admin -->
-  <div id="admin-controls" style="display:none; text-align:center; margin:20px;">
-    <button onclick="fazerBackup()">📦 Fazer Backup de Notícias</button>
-    <input type="file" id="restoreInput" accept=".zip" style="display:none;" onchange="restaurarBackup(event)">
-    <button onclick="document.getElementById('restoreInput').click()">📂 Restaurar Backup</button>
-  </div>
+  <!-- Aqui os blocos serão criados dinamicamente pelo script -->
 
   <main>
     <div id="lista-noticias"></div>
@@ -101,9 +114,36 @@
     const tipo = params.get("tipo") || "visitante";
     const email = params.get("email") || "";
 
-    // Mostrar botões admin apenas se for admin
+    const listaNoticias = document.getElementById("lista-noticias");
+    const main = document.querySelector("main");
+
+    // Se for aluno OU admin → cria container de upload
+    if (tipo === "aluno" || email === "0001056131@alunosesimg.com.br") {
+      const uploadContainer = document.createElement("div");
+      uploadContainer.id = "upload-container";
+      uploadContainer.innerHTML = `
+        <h2>Enviar notícia</h2>
+        <input type="text" id="titulo" placeholder="Título da notícia" required>
+        <textarea id="conteudo" placeholder="Conteúdo da notícia" rows="5" required></textarea>
+        <input type="file" id="pdf" accept="application/pdf">
+        <input type="file" id="capa" accept="image/*">
+        <input type="text" id="autor" placeholder="Seu nome" required>
+        <button onclick="enviarNoticia()">Enviar</button>
+      `;
+      main.insertBefore(uploadContainer, listaNoticias);
+    }
+
+    // Se for admin → cria controles extras
     if (email === "0001056131@alunosesimg.com.br") {
-      document.getElementById("admin-controls").style.display = "block";
+      const adminControls = document.createElement("div");
+      adminControls.id = "admin-controls";
+      adminControls.innerHTML = `
+        <h2>Administração</h2>
+        <button onclick="fazerBackup()">📦 Fazer Backup de Notícias</button>
+        <input type="file" id="restoreInput" accept=".zip" style="display:none;" onchange="restaurarBackup(event)">
+        <button onclick="document.getElementById('restoreInput').click()">📂 Restaurar Backup</button>
+      `;
+      main.insertBefore(adminControls, listaNoticias);
     }
 
     // Carregar notícias
@@ -111,27 +151,65 @@
       try {
         const res = await fetch(API_URL + "/noticias");
         const noticias = await res.json();
-        const lista = document.getElementById("lista-noticias");
-        lista.innerHTML = "";
+        listaNoticias.innerHTML = "";
 
         if(noticias.length === 0){
-          lista.innerHTML = "<p style='text-align:center; color:#ffeb3b;'>Nenhuma notícia disponível.</p>";
+          listaNoticias.innerHTML = "<p style='text-align:center; color:#ffeb3b;'>Nenhuma notícia disponível.</p>";
           return;
         }
 
         noticias.reverse().forEach(n => {
-          lista.innerHTML += `
+          listaNoticias.innerHTML += `
             <div class="noticia">
               <h3>${n.titulo}</h3>
               <p>${n.autor}</p>
-              <a href="${n.pdf}" target="_blank">📖 Ver PDF</a><br>
+              ${n.capa ? `<img src="${n.capa}" style="max-width:200px; display:block; margin-bottom:10px;">` : ""}
+              ${n.pdf ? `<a href="${n.pdf}" target="_blank">📖 Ver PDF</a><br>` : ""}
               <small>Postado em ${new Date(n.data).toLocaleString()}</small>
             </div>
           `;
         });
       } catch (err) {
         console.error(err);
-        document.getElementById("lista-noticias").innerHTML = "<p style='text-align:center; color:red;'>Erro ao carregar notícias.</p>";
+        listaNoticias.innerHTML = "<p style='text-align:center; color:red;'>Erro ao carregar notícias.</p>";
+      }
+    }
+
+    // Enviar notícia
+    async function enviarNoticia() {
+      const titulo = document.getElementById("titulo").value.trim();
+      const conteudo = document.getElementById("conteudo").value.trim();
+      const autor = document.getElementById("autor").value.trim();
+      const pdfFile = document.getElementById("pdf").files[0];
+      const capaFile = document.getElementById("capa").files[0];
+
+      if(!titulo || !conteudo || !autor){
+        alert("Preencha todos os campos!");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("titulo", titulo);
+      formData.append("conteudo", conteudo);
+      formData.append("autor", autor);
+      if(pdfFile) formData.append("pdf", pdfFile);
+      if(capaFile) formData.append("capa", capaFile);
+
+      try {
+        const res = await fetch(API_URL + "/noticias", {
+          method: "POST",
+          body: formData
+        });
+
+        if(res.ok){
+          alert("Notícia enviada com sucesso!");
+          carregarNoticias();
+        } else {
+          alert("Erro ao enviar notícia.");
+        }
+      } catch(err){
+        console.error(err);
+        alert("Erro ao enviar notícia.");
       }
     }
 

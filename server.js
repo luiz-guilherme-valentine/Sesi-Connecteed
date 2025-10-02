@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(__dirname)); // serve HTML e estáticos da raiz
+app.use(express.static(__dirname)); // serve HTML e outros estáticos da raiz
 
 // --- Pastas ---
 const NOTICIAS_DIR = path.join(__dirname, "noticias");
@@ -18,6 +18,9 @@ const UPLOADS_DIR = path.join(__dirname, "uploads");
 // garante que existam
 if (!fs.existsSync(NOTICIAS_DIR)) fs.mkdirSync(NOTICIAS_DIR);
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+
+// serve arquivos estáticos de notícias (PDFs e imagens)
+app.use("/noticias", express.static(NOTICIAS_DIR));
 
 // --- Multer para upload ---
 const upload = multer({ dest: UPLOADS_DIR });
@@ -45,7 +48,7 @@ function carregarNoticias() {
         titulo,
         autores,
         conteudo,
-        capa: fs.existsSync(path.join(pasta, "capa.png")) ? `/noticias/${nome}/capa` : null,
+        capa: fs.existsSync(path.join(pasta, "capa.png")) ? `/noticias/${nome}/capa.png` : null,
         pdf: fs.existsSync(path.join(pasta, "arquivo.pdf")) ? `/noticias/${nome}/arquivo.pdf` : null
       };
     });
@@ -55,16 +58,16 @@ function carregarNoticias() {
   }
 }
 
-// --- Rotas ---
+// --- Rotas API ---
 
 // 1. Listar notícias
-app.get("/noticias", (req, res) => {
+app.get("/api/noticias", (req, res) => {
   res.json(carregarNoticias());
 });
 
 // 2. Criar notícia
 const noticiasUpload = multer({ dest: path.join(__dirname, "temp") });
-app.post("/noticias", noticiasUpload.fields([
+app.post("/api/noticias", noticiasUpload.fields([
   { name: "pdf", maxCount: 1 },
   { name: "capa", maxCount: 1 }
 ]), (req, res) => {
@@ -84,7 +87,7 @@ app.post("/noticias", noticiasUpload.fields([
 });
 
 // 3. Deletar notícia
-app.delete("/noticias/:id", (req, res) => {
+app.delete("/api/noticias/:id", (req, res) => {
   const pasta = path.join(NOTICIAS_DIR, req.params.id);
   if (fs.existsSync(pasta)) {
     fs.rmSync(pasta, { recursive: true, force: true });
@@ -93,21 +96,7 @@ app.delete("/noticias/:id", (req, res) => {
   res.status(404).json({ error: "Notícia não encontrada" });
 });
 
-// 4. Servir capa
-app.get("/noticias/:id/capa", (req, res) => {
-  const capaPath = path.join(NOTICIAS_DIR, req.params.id, "capa.png");
-  if (fs.existsSync(capaPath)) return res.sendFile(capaPath);
-  res.status(404).send("Capa não encontrada");
-});
-
-// 5. Servir PDF
-app.get("/noticias/:id/arquivo.pdf", (req, res) => {
-  const pdfPath = path.join(NOTICIAS_DIR, req.params.id, "arquivo.pdf");
-  if (fs.existsSync(pdfPath)) return res.sendFile(pdfPath);
-  res.status(404).send("PDF não encontrado");
-});
-
-// 6. Fazer backup
+// 4. Fazer backup
 app.get("/backup", (req, res) => {
   const zipPath = path.join(__dirname, "backup.zip");
   const output = fs.createWriteStream(zipPath);
@@ -125,7 +114,7 @@ app.get("/backup", (req, res) => {
   archive.finalize();
 });
 
-// 7. Restaurar backup
+// 5. Restaurar backup
 app.post("/restore", upload.single("backup"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
   const zipPath = req.file.path;

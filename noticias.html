@@ -9,113 +9,152 @@
     body {
       margin: 0;
       font-family: 'Montserrat', sans-serif;
-      background: #0a1a3d;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       color: #fff;
+      min-height: 100vh;
+      background: linear-gradient(270deg,
+        #0a1a3d, #3366ff, #001f3f, #00b050, #006400, #99ff99, #00ffff, #ffffff);
+      background-size: 1600% 1600%;
+      animation: gradientFlow 30s ease infinite;
     }
-    header {
-      padding: 20px;
-      background: linear-gradient(90deg, #0044cc, #00b050);
-      text-align: center;
-      color: #ffeb3b;
-      font-size: 28px;
-      font-weight: bold;
-      text-shadow: 2px 2px 8px #000;
+    @keyframes gradientFlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
 
-    /* Área de upload e admin */
-    #upload-container, #admin-controls {
-      display: none;
-      background: rgba(255,255,255,0.08);
-      padding: 20px;
-      margin: 20px auto;
-      border-radius: 12px;
-      max-width: 600px;
+    header {
+      margin-top: 40px;
+      text-align: center;
+      padding: 20px 40px;
+      border-radius: 20px;
+      background: rgba(0,0,0,0.3);
+      box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    }
+    header h1 {
+      font-size: 42px;
+      font-weight: 700;
+      text-shadow: 2px 2px 8px #000;
+      color: #ffeb3b;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 30px auto;
+      padding: 30px;
+      border-radius: 20px;
+      background: rgba(0,0,0,0.3);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
       text-align: center;
     }
-    input, textarea {
+
+    .container input, .container textarea {
       width: 90%;
-      padding: 10px;
+      padding: 15px;
       margin: 10px 0;
-      border-radius: 8px;
+      border-radius: 12px;
       border: none;
+      font-size: 16px;
       outline: none;
     }
-    button {
-      padding: 10px 20px;
-      margin: 10px;
-      font-weight: bold;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      background: linear-gradient(90deg, #00b050, #0044cc);
-      color: #fff;
-      transition: 0.3s;
+    .container input:focus, .container textarea:focus {
+      box-shadow: 0 0 15px #00b050;
     }
-    button:hover { transform: scale(1.05); }
 
-    /* Lista de notícias */
+    .container button {
+      padding: 15px 25px;
+      font-size: 18px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(90deg, #0044cc, #00b050);
+      color: #fff;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.4s;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+      margin: 10px;
+    }
+    .container button:hover {
+      background: linear-gradient(90deg, #00b050, #0044cc);
+      transform: scale(1.05);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+    }
+
     #noticias-container {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 20px;
-      padding: 20px;
-      max-width: 1200px;
-      margin: auto;
+      margin-top: 20px;
     }
+
     .noticia {
-      background: rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.08);
       border-radius: 15px;
-      padding: 15px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: transform 0.3s;
       text-align: center;
-      transition: 0.3s;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
     }
     .noticia:hover {
       transform: translateY(-5px);
-      box-shadow: 0 8px 16px rgba(0,0,0,0.6);
     }
     .noticia h3 {
-      color: #FFD700;
-      margin: 10px 0;
+      color: #ffeb3b;
+      margin-bottom: 10px;
     }
     .noticia img {
       max-width: 100%;
-      height: auto;
       border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .noticia .autor {
+      color: #ddd;
+      font-size: 14px;
       margin-bottom: 10px;
     }
     .noticia a {
       display: inline-block;
-      margin-top: 10px;
       padding: 8px 12px;
-      background: #0044cc;
+      background: linear-gradient(90deg, #0044cc, #00b050);
+      border-radius: 8px;
       color: #fff;
-      border-radius: 6px;
       text-decoration: none;
       font-weight: bold;
     }
-    .noticia a:hover { background: #002a80; }
-    .autor {
-      font-size: 14px;
-      color: #ccc;
-      margin-bottom: 10px;
+    .noticia a:hover {
+      background: linear-gradient(90deg, #00b050, #0044cc);
+    }
+
+    footer {
+      text-align: center;
+      padding: 25px;
+      background: linear-gradient(90deg, #0044cc, #00b050);
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      color: #fff;
+      font-weight: bold;
+      text-shadow: 1px 1px 3px #000;
+      margin-top: auto;
     }
   </style>
 </head>
 <body>
   <header>
-    Sesi Connected - Notícias
+    <h1>Sesi Connected - Notícias</h1>
   </header>
 
-  <!-- Controles do admin -->
-  <div id="admin-controls">
+  <!-- Área do Admin -->
+  <div id="admin-controls" class="container" style="display:none;">
+    <h2>Administração</h2>
     <button onclick="fazerBackup()">Fazer Backup de Notícias</button>
     <input type="file" id="restoreInput" accept=".zip" style="display:none;" onchange="restaurarBackup(event)">
     <button onclick="document.getElementById('restoreInput').click()">Restaurar Backup</button>
   </div>
 
-  <!-- Upload (aluno/admin) -->
-  <div id="upload-container">
+  <!-- Upload -->
+  <div id="upload-container" class="container" style="display:none;">
     <h2>Enviar Notícia</h2>
     <input type="text" id="titulo" placeholder="Título da notícia" required><br>
     <input type="text" id="autor" placeholder="Autor da notícia" required><br>
@@ -127,8 +166,17 @@
     <button onclick="enviarNoticia()">Enviar</button>
   </div>
 
-  <!-- Lista de notícias -->
-  <div id="noticias-container"></div>
+  <!-- Lista de Notícias -->
+  <div class="container">
+    <h2>Últimas Notícias</h2>
+    <div id="noticias-container">
+      <p id="mensagem-vazia">Carregando notícias...</p>
+    </div>
+  </div>
+
+  <footer>
+    © 2025 Sesi Connected | Todos os direitos reservados
+  </footer>
 
   <script>
     const API_URL = "https://sesi-connecteed.onrender.com";
@@ -136,12 +184,12 @@
     const tipo = urlParams.get("tipo");
     const email = urlParams.get("email");
 
-    // Mostra upload se aluno ou admin
+    // Upload para aluno/admin
     if (tipo === "aluno" || email === "0001056131@alunosesimg.com.br") {
       document.getElementById("upload-container").style.display = "block";
     }
 
-    // Mostra controles admin
+    // Controles admin
     if (email === "0001056131@alunosesimg.com.br") {
       document.getElementById("admin-controls").style.display = "block";
     }
@@ -166,10 +214,7 @@
       if (capaFile) formData.append("capa", capaFile);
 
       try {
-        const res = await fetch(API_URL + "/noticias", {
-          method: "POST",
-          body: formData
-        });
+        const res = await fetch(API_URL + "/noticias", { method: "POST", body: formData });
         if (res.ok) {
           alert("Notícia enviada!");
           carregarNoticias();
@@ -181,30 +226,46 @@
     }
 
     async function carregarNoticias() {
-      const res = await fetch(API_URL + "/noticias");
-      const noticias = await res.json();
       const container = document.getElementById("noticias-container");
-      container.innerHTML = "";
+      const mensagem = document.getElementById("mensagem-vazia");
 
-      noticias.forEach(noticia => {
-        const div = document.createElement("div");
-        div.className = "noticia";
-        div.innerHTML = `
-          ${noticia.capa ? `<img src="${API_URL}${noticia.capa}" alt="Capa">` : ""}
-          <h3>${noticia.titulo}</h3>
-          <p class="autor">Por ${noticia.autor}</p>
-          <p>${noticia.conteudo || ""}</p>
-          ${noticia.pdf ? `<a href="${API_URL}${noticia.pdf}" target="_blank">📄 Ver PDF</a>` : ""}
-        `;
+      try {
+        const res = await fetch(API_URL + "/noticias");
+        if (!res.ok) throw new Error("Erro no servidor");
+        const noticias = await res.json();
 
-        if (email === "0001056131@alunosesimg.com.br") {
-          const btn = document.createElement("button");
-          btn.innerText = "Deletar";
-          btn.onclick = () => deletarNoticia(noticia.id);
-          div.appendChild(btn);
+        container.innerHTML = "";
+
+        if (!noticias.length) {
+          container.innerHTML = "<p>Nenhuma notícia disponível no momento.</p>";
+          return;
         }
-        container.appendChild(div);
-      });
+
+        noticias.forEach(noticia => {
+          const div = document.createElement("div");
+          div.className = "noticia";
+          div.innerHTML = `
+            ${noticia.capa ? `<img src="${API_URL}${noticia.capa}" alt="Capa">` : ""}
+            <h3>${noticia.titulo}</h3>
+            <p class="autor">Por ${noticia.autor}</p>
+            <p>${noticia.conteudo || ""}</p>
+            ${noticia.pdf ? `<a href="${API_URL}${noticia.pdf}" target="_blank">📄 Ver PDF</a>` : ""}
+          `;
+
+          if (email === "0001056131@alunosesimg.com.br") {
+            const btn = document.createElement("button");
+            btn.innerText = "Deletar";
+            btn.onclick = () => deletarNoticia(noticia.id);
+            div.appendChild(btn);
+          }
+
+          container.appendChild(div);
+        });
+
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = "<p>Erro ao carregar notícias. Tente novamente mais tarde.</p>";
+      }
     }
 
     async function deletarNoticia(id) {
@@ -217,7 +278,6 @@
       try {
         const res = await fetch(API_URL + "/backup");
         if (!res.ok) throw new Error("Erro ao gerar backup");
-
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -236,15 +296,10 @@
     async function restaurarBackup(event) {
       const file = event.target.files[0];
       if (!file) return;
-
       const formData = new FormData();
       formData.append("backup", file);
-
       try {
-        const res = await fetch(API_URL + "/restore", {
-          method: "POST",
-          body: formData
-        });
+        const res = await fetch(API_URL + "/restore", { method: "POST", body: formData });
         if (res.ok) {
           alert("Backup restaurado!");
           carregarNoticias();

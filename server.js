@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import archiver from "archiver";
+import unzipper from "unzipper";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,7 +38,11 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 
 // Funções auxiliares
 function carregarNoticias() {
-  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+  try {
+    return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+  } catch {
+    return [];
+  }
 }
 function salvarNoticias(noticias) {
   fs.writeFileSync(DB_FILE, JSON.stringify(noticias, null, 2));
@@ -45,8 +50,7 @@ function salvarNoticias(noticias) {
 
 // Rotas
 app.get("/api/noticias", (req, res) => {
-  const noticias = carregarNoticias();
-  res.json(noticias);
+  res.json(carregarNoticias());
 });
 
 app.post("/api/noticias", upload.fields([{ name: "capa" }, { name: "pdf" }]), (req, res) => {
@@ -72,11 +76,8 @@ app.delete("/api/noticias/:id", (req, res) => {
   let noticias = carregarNoticias();
   const noticia = noticias.find(n => n.id === id);
 
-  if (!noticia) {
-    return res.status(404).json({ error: "Notícia não encontrada" });
-  }
+  if (!noticia) return res.status(404).json({ error: "Notícia não encontrada" });
 
-  // remove arquivos associados
   [noticia.capa, noticia.pdf].forEach(file => {
     if (file && fs.existsSync(file)) fs.unlinkSync(file);
   });
@@ -115,9 +116,54 @@ app.get("/api/backup", (req, res) => {
   archive.finalize();
 });
 
+// Restauração de backup
+app.post("/api/restaurar", upload.single("backup"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+
+  const noticias = [];
+
+  fs.createReadStream(req.file.path)
+    .pipe(unzipper.Parse())
+    .on("entry", async entry => {
+      const filePath = entry.path;
+      const parts = filePath.split("/");
+      const pasta = parts[0];
+      const nomeArquivo = parts[1];
+
+      if (nomeArquivo === "dados.txt") {
+        let conteudo = "";
+        entry.on("data", d => conteudo += d.toString());
+        entry.on("end", () => {
+          const id = pasta.replace("noticia_", "");
+          const linhas = conteudo.split("\n");
+          const titulo = linhas[0].replace("Título: ", "").trim();
+          const autor = linhas[1].replace("Autor: ", "").trim();
+          const conteudoNoticia = linhas.slice(3).join("\n").trim();
+
+          noticias.push({ id, titulo, autor, conteudo: conteudoNoticia, capa: null, pdf: null });
+        });
+      } else {
+        const destino = path.join(UPLOADS_DIR, Date.now() + "-" + path.basename(filePath));
+        entry.pipe(fs.createWriteStream(destino));
+        const id = pasta.replace("noticia_", "");
+        const noticia = noticias.find(n => n.id === id);
+        if (noticia) {
+          if (nomeArquivo.startsWith("capa")) noticia.capa = destino;
+          if (nomeArquivo.startsWith("arquivo")) noticia.pdf = destino;
+        }
+      }
+    })
+    .on("close", () => {
+      salvarNoticias(noticias);
+      fs.unlinkSync(req.file.path);
+      res.json({ success: true, restored: noticias.length });
+    });
+});
+
 // Servir frontend
 app.use(express.static(__dirname));
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
+                

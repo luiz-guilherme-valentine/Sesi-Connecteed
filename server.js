@@ -4,32 +4,30 @@ const path = require("path");
 const multer = require("multer");
 const archiver = require("archiver");
 const unzipper = require("unzipper");
+const cors = require("cors");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname)); // serve HTML e outros estáticos da raiz
+app.use(express.static(__dirname)); // servir HTML e estáticos
 
-// --- Pastas ---
+// Pastas
 const NOTICIAS_DIR = path.join(__dirname, "noticias");
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 
-// garante que existam
+// Garante pastas
 if (!fs.existsSync(NOTICIAS_DIR)) fs.mkdirSync(NOTICIAS_DIR);
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
 
-// serve arquivos estáticos de notícias (PDFs e imagens)
-app.use("/noticias", express.static(NOTICIAS_DIR));
-
-// --- Multer para upload ---
 const upload = multer({ dest: UPLOADS_DIR });
 
-// --- Função auxiliar: carregar notícias ---
+// ---- Função auxiliar
 function carregarNoticias() {
   try {
     const arquivos = fs.readdirSync(NOTICIAS_DIR);
-    return arquivos.map(nome => {
+    return arquivos.map((nome) => {
       const pasta = path.join(NOTICIAS_DIR, nome);
       const txtPath = path.join(pasta, "dados.txt");
       let titulo = "Sem título";
@@ -37,10 +35,10 @@ function carregarNoticias() {
       let conteudo = "";
 
       if (fs.existsSync(txtPath)) {
-        const linhas = fs.readFileSync(txtPath, "utf8").split("\n");
-        titulo = linhas[0] || titulo;
-        autores = linhas[1] || autores;
-        conteudo = linhas.slice(2).join("\n") || "";
+        const texto = fs.readFileSync(txtPath, "utf8").split("\n");
+        titulo = texto[0] || titulo;
+        autores = texto[1] || autores;
+        conteudo = texto.slice(2).join("\n") || "";
       }
 
       return {
@@ -48,8 +46,12 @@ function carregarNoticias() {
         titulo,
         autores,
         conteudo,
-        capa: fs.existsSync(path.join(pasta, "capa.png")) ? `/noticias/${nome}/capa.png` : null,
-        pdf: fs.existsSync(path.join(pasta, "arquivo.pdf")) ? `/noticias/${nome}/arquivo.pdf` : null
+        capa: fs.existsSync(path.join(pasta, "capa.png"))
+          ? `/noticias/${nome}/capa.png`
+          : null,
+        pdf: fs.existsSync(path.join(pasta, "arquivo.pdf"))
+          ? `/noticias/${nome}/arquivo.pdf`
+          : null,
       };
     });
   } catch (err) {
@@ -58,27 +60,27 @@ function carregarNoticias() {
   }
 }
 
-// --- Rotas API ---
+// ---- Rotas ----
 
-// 1. Listar notícias
-app.get("/api/noticias", (req, res) => {
+// Listar
+app.get("/noticias", (req, res) => {
   res.json(carregarNoticias());
 });
 
-// 2. Criar notícia
+// Criar
 const noticiasUpload = multer({ dest: path.join(__dirname, "temp") });
-app.post("/api/noticias", noticiasUpload.fields([
+app.post("/noticias", noticiasUpload.fields([
   { name: "pdf", maxCount: 1 },
   { name: "capa", maxCount: 1 }
 ]), (req, res) => {
-  const { titulo, autor, conteudo } = req.body;
-  if (!titulo || !autor) return res.status(400).json({ error: "Título e autor obrigatórios" });
+  const { titulo, autores, conteudo } = req.body;
+  if (!titulo || !autores) return res.status(400).json({ error: "Título e autores obrigatórios" });
 
   const id = Date.now().toString();
   const pasta = path.join(NOTICIAS_DIR, id);
   fs.mkdirSync(pasta);
 
-  fs.writeFileSync(path.join(pasta, "dados.txt"), `${titulo}\n${autor}\n${conteudo || ""}`, "utf8");
+  fs.writeFileSync(path.join(pasta, "dados.txt"), `${titulo}\n${autores}\n${conteudo || ""}`, "utf8");
 
   if (req.files.pdf) fs.renameSync(req.files.pdf[0].path, path.join(pasta, "arquivo.pdf"));
   if (req.files.capa) fs.renameSync(req.files.capa[0].path, path.join(pasta, "capa.png"));
@@ -86,8 +88,8 @@ app.post("/api/noticias", noticiasUpload.fields([
   res.json({ message: "Notícia criada", id });
 });
 
-// 3. Deletar notícia
-app.delete("/api/noticias/:id", (req, res) => {
+// Deletar
+app.delete("/noticias/:id", (req, res) => {
   const pasta = path.join(NOTICIAS_DIR, req.params.id);
   if (fs.existsSync(pasta)) {
     fs.rmSync(pasta, { recursive: true, force: true });
@@ -96,7 +98,7 @@ app.delete("/api/noticias/:id", (req, res) => {
   res.status(404).json({ error: "Notícia não encontrada" });
 });
 
-// 4. Fazer backup
+// Backup
 app.get("/backup", (req, res) => {
   const zipPath = path.join(__dirname, "backup.zip");
   const output = fs.createWriteStream(zipPath);
@@ -114,7 +116,7 @@ app.get("/backup", (req, res) => {
   archive.finalize();
 });
 
-// 5. Restaurar backup
+// Restaurar
 app.post("/restore", upload.single("backup"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
   const zipPath = req.file.path;
@@ -131,4 +133,6 @@ app.post("/restore", upload.single("backup"), (req, res) => {
     });
 });
 
-app.listen(PORT, () => console.log(`Servidor rodando em http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
+});

@@ -40,7 +40,7 @@
       color: #ffeb3b;
     }
 
-    .noticias-container {
+    .container {
       max-width: 900px;
       width: 95%;
       margin: 30px auto;
@@ -48,6 +48,10 @@
       padding: 30px;
       border-radius: 20px;
       box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+    h2 {
+      color: #ffeb3b;
+      text-shadow: 1px 1px 3px #000;
     }
     .noticia-card {
       background: rgba(255,255,255,0.1);
@@ -77,6 +81,43 @@
       cursor: pointer;
       font-weight: bold;
     }
+    .upload-container {
+      margin-bottom: 30px;
+      padding: 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .upload-container input, .upload-container textarea {
+      width: 95%;
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+    }
+    .upload-container button {
+      padding: 12px 20px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(90deg, #0044cc, #00b050);
+      color: #fff;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.3s;
+      margin-top: 10px;
+    }
+    .upload-container button:hover {
+      background: linear-gradient(90deg, #00b050, #0044cc);
+      transform: scale(1.05);
+    }
+    .backup-btn {
+      background: gold;
+      color: black;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
 
     footer {
       text-align: center;
@@ -96,7 +137,9 @@
     <h1>Sesi Connected - Notícias</h1>
   </header>
 
-  <main class="noticias-container">
+  <main class="container">
+    <div id="adminActions"></div>
+    <div id="uploadArea"></div>
     <h2>Últimas Notícias</h2>
     <div id="listaNoticias">
       <p>Carregando notícias...</p>
@@ -112,6 +155,30 @@
     const tipo = params.get("tipo");
     const email = params.get("email");
     const isAdmin = email === "0001056131@alunosesimg.com.br";
+
+    // Exibe área de upload se for aluno ou admin
+    if (tipo === "aluno" || isAdmin) {
+      document.getElementById("uploadArea").innerHTML = `
+        <div class="upload-container">
+          <h2>Enviar Nova Notícia</h2>
+          <input type="text" id="titulo" placeholder="Título da notícia" required>
+          <input type="text" id="autor" placeholder="Autor da notícia" required>
+          <textarea id="conteudo" placeholder="Conteúdo (opcional)"></textarea>
+          <label>Upload da capa:</label><br>
+          <input type="file" id="capa"><br>
+          <label>Upload do PDF:</label><br>
+          <input type="file" id="pdf"><br>
+          <button onclick="enviarNoticia()">Enviar</button>
+        </div>
+      `;
+    }
+
+    // Exibe botão de backup se for admin
+    if (isAdmin) {
+      document.getElementById("adminActions").innerHTML = `
+        <button class="upload-container backup-btn" onclick="fazerBackup()">📦 Fazer Backup</button>
+      `;
+    }
 
     async function carregarNoticias() {
       try {
@@ -152,6 +219,37 @@
       }
     }
 
+    function enviarNoticia() {
+      const titulo = document.getElementById("titulo").value.trim();
+      const autor = document.getElementById("autor").value.trim();
+      const conteudo = document.getElementById("conteudo").value.trim();
+      const capa = document.getElementById("capa").files[0];
+      const pdf = document.getElementById("pdf").files[0];
+
+      if (!titulo || !autor) {
+        alert("Preencha ao menos título e autor.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("titulo", titulo);
+      formData.append("autor", autor);
+      formData.append("conteudo", conteudo);
+      if (capa) formData.append("capa", capa);
+      if (pdf) formData.append("pdf", pdf);
+
+      fetch("/api/noticias", { method: "POST", body: formData })
+        .then(res => res.json())
+        .then(() => {
+          alert("Notícia enviada com sucesso!");
+          carregarNoticias();
+        })
+        .catch(err => {
+          console.error(err);
+          alert("Erro ao enviar notícia.");
+        });
+    }
+
     function deletarNoticia(id, btn) {
       if (!confirm("Tem certeza que deseja excluir esta notícia?")) return;
 
@@ -171,8 +269,12 @@
         });
     }
 
+    function fazerBackup() {
+      // inicia download direto do ZIP gerado no backend
+      window.location.href = "/api/backup";
+    }
+
     carregarNoticias();
   </script>
 </body>
-  </html>
-  
+</html>

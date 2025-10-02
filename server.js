@@ -1,155 +1,54 @@
-import express from "express";
-import multer from "multer";
-import fs from "fs";
-import path from "path";
-import archiver from "archiver";
-import unzipper from "unzipper";
+const express = require("express");
+const multer = require("multer");
+const cors = require("cors");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const __dirname = path.resolve();
-const noticiasFile = path.join(__dirname, "noticias.json");
-const noticiasDir = path.join(__dirname, "noticias");
-
-// Middleware
+app.use(cors());
 app.use(express.json());
-app.use("/noticias", express.static(noticiasDir));
 
-// Configuração do upload (PDF + capa)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, noticiasDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + "-" + file.originalname);
-  }
-});
-const upload = multer({ storage });
+// Usamos memória para armazenar notícias temporariamente
+let noticias = [];
+const upload = multer();
 
-// Inicializa JSON se não existir
-if (!fs.existsSync(noticiasFile)) {
-  fs.writeFileSync(noticiasFile, "[]");
-}
-if (!fs.existsSync(noticiasDir)) {
-  fs.mkdirSync(noticiasDir);
-}
-
-// GET todas as notícias
+// --- ROTAS ---
+// Listar notícias
 app.get("/noticias", (req, res) => {
-  const noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
   res.json(noticias);
 });
 
-// POST nova notícia
-app.post("/noticias", upload.fields([{ name: "pdf" }, { name: "capa" }]), (req, res) => {
-  const noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
-
+// Criar notícia (envio de FormData)
+app.post("/noticias", upload.fields([
+  { name: "pdf", maxCount: 1 },
+  { name: "capa", maxCount: 1 }
+]), (req, res) => {
   const { titulo, autor, conteudo } = req.body;
-  if (!titulo || !autor) {
-    return res.status(400).json({ error: "Título e Autor são obrigatórios" });
-  }
+  if (!titulo || !autor) return res.status(400).json({ error: "Título e autor obrigatórios" });
 
-  const id = Date.now();
-  const pdfFile = req.files["pdf"] ? req.files["pdf"][0].filename : null;
-  const capaFile = req.files["capa"] ? req.files["capa"][0].filename : null;
-
+  const id = Date.now().toString();
   const noticia = {
     id,
     titulo,
     autor,
-    conteudo,
-    pdf: pdfFile,
-    capa: capaFile
+    conteudo: conteudo || "",
+    capa: req.files.capa ? req.files.capa[0].buffer.toString("base64") : null,
+    pdf: req.files.pdf ? req.files.pdf[0].buffer.toString("base64") : null
   };
 
   noticias.push(noticia);
-  fs.writeFileSync(noticiasFile, JSON.stringify(noticias, null, 2));
-
-  res.json(noticia);
+  res.json({ message: "Notícia criada", id });
 });
 
-// DELETE notícia
+// Deletar notícia
 app.delete("/noticias/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  let noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
-
-  const noticia = noticias.find(n => n.id === id);
-  if (!noticia) return res.status(404).json({ error: "Notícia não encontrada" });
-
-  // remove arquivos associados
-  if (noticia.pdf) {
-    fs.unlinkSync(path.join(noticiasDir, noticia.pdf));
-  }
-  if (noticia.capa) {
-    fs.unlinkSync(path.join(noticiasDir, noticia.capa));
-  }
-
-  noticias = noticias.filter(n => n.id !== id);
-  fs.writeFileSync(noticiasFile, JSON.stringify(noticias, null, 2));
-
-  res.json({ success: true });
+  const index = noticias.findIndex(n => n.id === req.params.id);
+  if (index === -1) return res.status(404).json({ error: "Notícia não encontrada" });
+  noticias.splice(index, 1);
+  res.json({ message: "Notícia deletada" });
 });
 
-// GET capa
-app.get("/noticias/:id/capa", (req, res) => {
-  const id = parseInt(req.params.id);
-  const noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
-  const noticia = noticias.find(n => n.id === id);
-
-  if (noticia && noticia.capa) {
-    res.sendFile(path.join(noticiasDir, noticia.capa));
-  } else {
-    res.status(404).send("Capa não encontrada");
-  }
-});
-
-// GET PDF
-app.get("/noticias/:id/arquivo.pdf", (req, res) => {
-  const id = parseInt(req.params.id);
-  const noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
-  const noticia = noticias.find(n => n.id === id);
-
-  if (noticia && noticia.pdf) {
-    res.sendFile(path.join(noticiasDir, noticia.pdf));
-  } else {
-    res.status(404).send("PDF não encontrado");
-  }
-});
-
-// Backup
-app.get("/backup", (req, res) => {
-  const zipPath = path.join(__dirname, "backup-noticias.zip");
-  const output = fs.createWriteStream(zipPath);
-  const archive = archiver("zip");
-
-  output.on("close", () => {
-    res.download(zipPath, "backup-noticias.zip", () => {
-      fs.unlinkSync(zipPath); // apaga depois de enviar
-    });
-  });
-
-  archive.pipe(output);
-  archive.file(noticiasFile, { name: "noticias.json" });
-  archive.directory(noticiasDir, "noticias");
-  archive.finalize();
-});
-
-// Restore backup
-app.post("/restore", upload.single("backup"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
-
-  const zipPath = req.file.path;
-
-  fs.createReadStream(zipPath)
-    .pipe(unzipper.Extract({ path: __dirname }))
-    .on("close", () => {
-      fs.unlinkSync(zipPath);
-      res.json({ success: true });
-    });
-});
-
+// Rodando servidor
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });

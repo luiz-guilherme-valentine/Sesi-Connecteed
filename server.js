@@ -1,99 +1,123 @@
-const express = require("express");
-const cors = require("cors");
-const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
+import express from "express";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import archiver from "archiver";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.static("uploads"));
+const PORT = process.env.PORT || 3000;
 
-const DATA_FILE = "./data/noticias.json";
+const UPLOADS_DIR = path.join(__dirname, "uploads");
+const DB_FILE = path.join(__dirname, "noticias.json");
 
-// Garante que a pasta de dados existe
-if (!fs.existsSync("./data")) fs.mkdirSync("./data");
-if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "[]");
+// Garante diretórios
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, "[]");
 
-// Configuração do Multer (upload de capa e PDF)
+// Configura uploads
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = "uploads/";
-    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
-    cb(null, uploadPath);
+  destination: (req, file, cb) => {
+    cb(null, UPLOADS_DIR);
   },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + "-" + file.originalname);
+  filename: (req, file, cb) => {
+    const uniqueName = Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
+    cb(null, uniqueName);
   }
 });
-
 const upload = multer({ storage });
 
-// Rota: obter todas as notícias
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(UPLOADS_DIR));
+
+// Funções auxiliares
+function carregarNoticias() {
+  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+}
+function salvarNoticias(noticias) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(noticias, null, 2));
+}
+
+// Rotas
 app.get("/api/noticias", (req, res) => {
-  fs.readFile(DATA_FILE, "utf8", (err, data) => {
-    if (err) return res.status(500).send("Erro ao ler notícias.");
-    res.send(JSON.parse(data));
-  });
+  const noticias = carregarNoticias();
+  res.json(noticias);
 });
 
-// Rota: adicionar notícia
-app.post("/api/noticias", upload.fields([{ name: "pdf" }, { name: "capa" }]), (req, res) => {
+app.post("/api/noticias", upload.fields([{ name: "capa" }, { name: "pdf" }]), (req, res) => {
   const { titulo, autor, conteudo } = req.body;
-  const pdf = req.files["pdf"] ? req.files["pdf"][0].filename : null;
-  const capa = req.files["capa"] ? req.files["capa"][0].filename : null;
+  const noticias = carregarNoticias();
 
   const noticia = {
     id: Date.now().toString(),
     titulo,
     autor,
-    conteudo: conteudo || "",
-    pdf,
-    capa
+    conteudo,
+    capa: req.files["capa"] ? path.join("uploads", req.files["capa"][0].filename) : null,
+    pdf: req.files["pdf"] ? path.join("uploads", req.files["pdf"][0].filename) : null
   };
 
-  fs.readFile(DATA_FILE, "utf8", (err, data) => {
-    if (err) return res.status(500).send("Erro ao salvar notícia.");
-    const noticias = JSON.parse(data);
-    noticias.push(noticia);
-    fs.writeFile(DATA_FILE, JSON.stringify(noticias, null, 2), (err) => {
-      if (err) return res.status(500).send("Erro ao salvar notícia.");
-      res.send(noticia);
-    });
-  });
+  noticias.push(noticia);
+  salvarNoticias(noticias);
+  res.json({ success: true, noticia });
 });
 
-// Rota: deletar notícia
 app.delete("/api/noticias/:id", (req, res) => {
-  const id = req.params.id;
+  const { id } = req.params;
+  let noticias = carregarNoticias();
+  const noticia = noticias.find(n => n.id === id);
 
-  fs.readFile(DATA_FILE, "utf8", (err, data) => {
-    if (err) return res.status(500).send("Erro ao ler notícias.");
+  if (!noticia) {
+    return res.status(404).json({ error: "Notícia não encontrada" });
+  }
 
-    let noticias = JSON.parse(data);
-    const index = noticias.findIndex(n => n.id === id);
-
-    if (index === -1) {
-      return res.status(404).send("Notícia não encontrada.");
-    }
-
-    // Deleta os arquivos associados (PDF e capa)
-    const noticia = noticias[index];
-    if (noticia.pdf && fs.existsSync(path.join("uploads", noticia.pdf))) {
-      fs.unlinkSync(path.join("uploads", noticia.pdf));
-    }
-    if (noticia.capa && fs.existsSync(path.join("uploads", noticia.capa))) {
-      fs.unlinkSync(path.join("uploads", noticia.capa));
-    }
-
-    noticias.splice(index, 1);
-
-    fs.writeFile(DATA_FILE, JSON.stringify(noticias, null, 2), (err) => {
-      if (err) return res.status(500).send("Erro ao salvar exclusão.");
-      res.send({ success: true });
-    });
+  // remove arquivos associados
+  [noticia.capa, noticia.pdf].forEach(file => {
+    if (file && fs.existsSync(file)) fs.unlinkSync(file);
   });
+
+  noticias = noticias.filter(n => n.id !== id);
+  salvarNoticias(noticias);
+
+  res.json({ success: true });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Servidor rodando na porta " + PORT));
+// Backup (gera ZIP com todas as notícias e arquivos)
+app.get("/api/backup", (req, res) => {
+  const noticias = carregarNoticias();
+
+  res.setHeader("Content-Disposition", "attachment; filename=backup_noticias.zip");
+  res.setHeader("Content-Type", "application/zip");
+
+  const archive = archiver("zip", { zlib: { level: 9 } });
+  archive.pipe(res);
+
+  noticias.forEach(noticia => {
+    const pasta = `noticia_${noticia.id}`;
+    let conteudoTxt = `Título: ${noticia.titulo}\nAutor: ${noticia.autor}\n`;
+    if (noticia.conteudo) conteudoTxt += `\nConteúdo:\n${noticia.conteudo}\n`;
+
+    archive.append(conteudoTxt, { name: `${pasta}/dados.txt` });
+
+    if (noticia.capa && fs.existsSync(noticia.capa)) {
+      archive.file(noticia.capa, { name: `${pasta}/capa${path.extname(noticia.capa)}` });
+    }
+    if (noticia.pdf && fs.existsSync(noticia.pdf)) {
+      archive.file(noticia.pdf, { name: `${pasta}/arquivo.pdf` });
+    }
+  });
+
+  archive.finalize();
+});
+
+// Servir frontend
+app.use(express.static(__dirname));
+
+app.listen(PORT, () => {
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
+});

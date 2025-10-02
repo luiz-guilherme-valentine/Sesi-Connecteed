@@ -1,138 +1,155 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const multer = require("multer");
-const archiver = require("archiver");
-const unzipper = require("unzipper");
-const cors = require("cors");
+import express from "express";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import archiver from "archiver";
+import unzipper from "unzipper";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+const __dirname = path.resolve();
+const noticiasFile = path.join(__dirname, "noticias.json");
+const noticiasDir = path.join(__dirname, "noticias");
+
+// Middleware
 app.use(express.json());
-app.use(express.static(__dirname)); // servir HTML e estáticos
+app.use("/noticias", express.static(noticiasDir));
 
-// Pastas
-const NOTICIAS_DIR = path.join(__dirname, "noticias");
-const UPLOADS_DIR = path.join(__dirname, "uploads");
-
-// Garante pastas
-if (!fs.existsSync(NOTICIAS_DIR)) fs.mkdirSync(NOTICIAS_DIR);
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
-
-const upload = multer({ dest: UPLOADS_DIR });
-
-// ---- Função auxiliar
-function carregarNoticias() {
-  try {
-    const arquivos = fs.readdirSync(NOTICIAS_DIR);
-    return arquivos.map((nome) => {
-      const pasta = path.join(NOTICIAS_DIR, nome);
-      const txtPath = path.join(pasta, "dados.txt");
-      let titulo = "Sem título";
-      let autores = "Desconhecido";
-      let conteudo = "";
-
-      if (fs.existsSync(txtPath)) {
-        const texto = fs.readFileSync(txtPath, "utf8").split("\n");
-        titulo = texto[0] || titulo;
-        autores = texto[1] || autores;
-        conteudo = texto.slice(2).join("\n") || "";
-      }
-
-      return {
-        id: nome,
-        titulo,
-        autores,
-        conteudo,
-        capa: fs.existsSync(path.join(pasta, "capa.png"))
-          ? `/noticias/${nome}/capa.png`
-          : null,
-        pdf: fs.existsSync(path.join(pasta, "arquivo.pdf"))
-          ? `/noticias/${nome}/arquivo.pdf`
-          : null,
-      };
-    });
-  } catch (err) {
-    console.error("Erro ao carregar notícias:", err);
-    return [];
+// Configuração do upload (PDF + capa)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, noticiasDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + "-" + file.originalname);
   }
+});
+const upload = multer({ storage });
+
+// Inicializa JSON se não existir
+if (!fs.existsSync(noticiasFile)) {
+  fs.writeFileSync(noticiasFile, "[]");
+}
+if (!fs.existsSync(noticiasDir)) {
+  fs.mkdirSync(noticiasDir);
 }
 
-// ---- Rotas ----
-
-// Listar
+// GET todas as notícias
 app.get("/noticias", (req, res) => {
-  res.json(carregarNoticias());
+  const noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
+  res.json(noticias);
 });
 
-// Criar
-const noticiasUpload = multer({ dest: path.join(__dirname, "temp") });
-app.post("/noticias", noticiasUpload.fields([
-  { name: "pdf", maxCount: 1 },
-  { name: "capa", maxCount: 1 }
-]), (req, res) => {
-  const { titulo, autores, conteudo } = req.body;
-  if (!titulo || !autores) return res.status(400).json({ error: "Título e autores obrigatórios" });
+// POST nova notícia
+app.post("/noticias", upload.fields([{ name: "pdf" }, { name: "capa" }]), (req, res) => {
+  const noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
 
-  const id = Date.now().toString();
-  const pasta = path.join(NOTICIAS_DIR, id);
-  fs.mkdirSync(pasta);
-
-  fs.writeFileSync(path.join(pasta, "dados.txt"), `${titulo}\n${autores}\n${conteudo || ""}`, "utf8");
-
-  if (req.files.pdf) fs.renameSync(req.files.pdf[0].path, path.join(pasta, "arquivo.pdf"));
-  if (req.files.capa) fs.renameSync(req.files.capa[0].path, path.join(pasta, "capa.png"));
-
-  res.json({ message: "Notícia criada", id });
-});
-
-// Deletar
-app.delete("/noticias/:id", (req, res) => {
-  const pasta = path.join(NOTICIAS_DIR, req.params.id);
-  if (fs.existsSync(pasta)) {
-    fs.rmSync(pasta, { recursive: true, force: true });
-    return res.json({ message: "Notícia deletada" });
+  const { titulo, autor, conteudo } = req.body;
+  if (!titulo || !autor) {
+    return res.status(400).json({ error: "Título e Autor são obrigatórios" });
   }
-  res.status(404).json({ error: "Notícia não encontrada" });
+
+  const id = Date.now();
+  const pdfFile = req.files["pdf"] ? req.files["pdf"][0].filename : null;
+  const capaFile = req.files["capa"] ? req.files["capa"][0].filename : null;
+
+  const noticia = {
+    id,
+    titulo,
+    autor,
+    conteudo,
+    pdf: pdfFile,
+    capa: capaFile
+  };
+
+  noticias.push(noticia);
+  fs.writeFileSync(noticiasFile, JSON.stringify(noticias, null, 2));
+
+  res.json(noticia);
+});
+
+// DELETE notícia
+app.delete("/noticias/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  let noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
+
+  const noticia = noticias.find(n => n.id === id);
+  if (!noticia) return res.status(404).json({ error: "Notícia não encontrada" });
+
+  // remove arquivos associados
+  if (noticia.pdf) {
+    fs.unlinkSync(path.join(noticiasDir, noticia.pdf));
+  }
+  if (noticia.capa) {
+    fs.unlinkSync(path.join(noticiasDir, noticia.capa));
+  }
+
+  noticias = noticias.filter(n => n.id !== id);
+  fs.writeFileSync(noticiasFile, JSON.stringify(noticias, null, 2));
+
+  res.json({ success: true });
+});
+
+// GET capa
+app.get("/noticias/:id/capa", (req, res) => {
+  const id = parseInt(req.params.id);
+  const noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
+  const noticia = noticias.find(n => n.id === id);
+
+  if (noticia && noticia.capa) {
+    res.sendFile(path.join(noticiasDir, noticia.capa));
+  } else {
+    res.status(404).send("Capa não encontrada");
+  }
+});
+
+// GET PDF
+app.get("/noticias/:id/arquivo.pdf", (req, res) => {
+  const id = parseInt(req.params.id);
+  const noticias = JSON.parse(fs.readFileSync(noticiasFile, "utf-8"));
+  const noticia = noticias.find(n => n.id === id);
+
+  if (noticia && noticia.pdf) {
+    res.sendFile(path.join(noticiasDir, noticia.pdf));
+  } else {
+    res.status(404).send("PDF não encontrado");
+  }
 });
 
 // Backup
 app.get("/backup", (req, res) => {
-  const zipPath = path.join(__dirname, "backup.zip");
+  const zipPath = path.join(__dirname, "backup-noticias.zip");
   const output = fs.createWriteStream(zipPath);
-  const archive = archiver("zip", { zlib: { level: 9 } });
+  const archive = archiver("zip");
 
   output.on("close", () => {
-    res.download(zipPath, "backup_noticias.zip", (err) => {
-      if (err) console.error(err);
-      fs.unlinkSync(zipPath);
+    res.download(zipPath, "backup-noticias.zip", () => {
+      fs.unlinkSync(zipPath); // apaga depois de enviar
     });
   });
 
   archive.pipe(output);
-  archive.directory(NOTICIAS_DIR, false);
+  archive.file(noticiasFile, { name: "noticias.json" });
+  archive.directory(noticiasDir, "noticias");
   archive.finalize();
 });
 
-// Restaurar
-app.post("/restore", upload.single("backup"), (req, res) => {
+// Restore backup
+app.post("/restore", upload.single("backup"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+
   const zipPath = req.file.path;
 
   fs.createReadStream(zipPath)
-    .pipe(unzipper.Extract({ path: NOTICIAS_DIR }))
+    .pipe(unzipper.Extract({ path: __dirname }))
     .on("close", () => {
       fs.unlinkSync(zipPath);
-      res.json({ message: "Backup restaurado" });
-    })
-    .on("error", (err) => {
-      console.error(err);
-      res.status(500).json({ error: "Falha ao restaurar backup" });
+      res.json({ success: true });
     });
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });

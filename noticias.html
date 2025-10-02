@@ -24,7 +24,6 @@
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
-
     header {
       margin-top: 40px;
       text-align: center;
@@ -39,7 +38,6 @@
       text-shadow: 2px 2px 8px #000;
       color: #ffeb3b;
     }
-
     .container {
       max-width: 1000px;
       margin: 30px auto;
@@ -49,7 +47,6 @@
       box-shadow: 0 6px 20px rgba(0,0,0,0.5);
       text-align: center;
     }
-
     .container input, .container textarea {
       width: 90%;
       padding: 15px;
@@ -62,7 +59,6 @@
     .container input:focus, .container textarea:focus {
       box-shadow: 0 0 15px #00b050;
     }
-
     .container button {
       padding: 15px 25px;
       font-size: 18px;
@@ -81,14 +77,12 @@
       transform: scale(1.05);
       box-shadow: 0 8px 25px rgba(0,0,0,0.6);
     }
-
     #noticias-container {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 20px;
       margin-top: 20px;
     }
-
     .noticia {
       background: rgba(255,255,255,0.08);
       border-radius: 15px;
@@ -101,7 +95,7 @@
       transform: translateY(-5px);
     }
     .noticia h3 {
-      color: #ffeb3b;
+      color: #ffd700;
       margin-bottom: 10px;
     }
     .noticia img {
@@ -126,7 +120,6 @@
     .noticia a:hover {
       background: linear-gradient(90deg, #00b050, #0044cc);
     }
-
     footer {
       text-align: center;
       padding: 25px;
@@ -145,7 +138,7 @@
     <h1>Sesi Connected - Notícias</h1>
   </header>
 
-  <!-- Área do Admin -->
+  <!-- Admin Controls -->
   <div id="admin-controls" class="container" style="display:none;">
     <h2>Administração</h2>
     <button onclick="fazerBackup()">Fazer Backup de Notícias</button>
@@ -153,7 +146,7 @@
     <button onclick="document.getElementById('restoreInput').click()">Restaurar Backup</button>
   </div>
 
-  <!-- Upload -->
+  <!-- Upload (apenas para aluno/admin) -->
   <div id="upload-container" class="container" style="display:none;">
     <h2>Enviar Notícia</h2>
     <input type="text" id="titulo" placeholder="Título da notícia" required><br>
@@ -184,20 +177,59 @@
     const tipo = urlParams.get("tipo");
     const email = urlParams.get("email");
 
-    // Upload para aluno/admin
+    // Mostrar upload para aluno/admin
     if (tipo === "aluno" || email === "0001056131@alunosesimg.com.br") {
       document.getElementById("upload-container").style.display = "block";
     }
 
-    // Controles admin
+    // Mostrar controles admin
     if (email === "0001056131@alunosesimg.com.br") {
       document.getElementById("admin-controls").style.display = "block";
     }
 
+    // Carregar notícias
+    async function carregarNoticias() {
+      const container = document.getElementById("noticias-container");
+      try {
+        const res = await fetch(API_URL + "/noticias");
+        if (!res.ok) throw new Error("Erro ao buscar notícias");
+        const noticias = await res.json();
+
+        container.innerHTML = "";
+        if (!noticias.length) {
+          container.innerHTML = "<p>Nenhuma notícia disponível no momento.</p>";
+          return;
+        }
+
+        noticias.forEach(noticia => {
+          const div = document.createElement("div");
+          div.className = "noticia";
+          div.innerHTML = `
+            ${noticia.capa ? `<img src="${API_URL}/noticias/${noticia.id}/capa.${noticia.capa.split('.').pop()}" alt="Capa">` : ""}
+            <h3>${noticia.titulo}</h3>
+            <p class="autor">Por ${noticia.autor}</p>
+            <p>${noticia.conteudo || ""}</p>
+            ${noticia.pdf ? `<a href="${API_URL}/noticias/${noticia.id}/arquivo.pdf" target="_blank">📄 Ver PDF</a>` : ""}
+          `;
+          // Botão deletar apenas para admin
+          if (email === "0001056131@alunosesimg.com.br") {
+            const btn = document.createElement("button");
+            btn.innerText = "Deletar";
+            btn.onclick = () => deletarNoticia(noticia.id);
+            div.appendChild(btn);
+          }
+          container.appendChild(div);
+        });
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = "<p>Erro ao carregar notícias. Tente novamente mais tarde.</p>";
+      }
+    }
+
     async function enviarNoticia() {
       const titulo = document.getElementById("titulo").value.trim();
-      const conteudo = document.getElementById("conteudo").value.trim();
       const autor = document.getElementById("autor").value.trim();
+      const conteudo = document.getElementById("conteudo").value.trim();
       const pdfFile = document.getElementById("pdf").files[0];
       const capaFile = document.getElementById("capa").files[0];
 
@@ -208,72 +240,30 @@
 
       const formData = new FormData();
       formData.append("titulo", titulo);
-      formData.append("conteudo", conteudo || "");
       formData.append("autor", autor);
+      formData.append("conteudo", conteudo || "");
       if (pdfFile) formData.append("pdf", pdfFile);
       if (capaFile) formData.append("capa", capaFile);
 
       try {
         const res = await fetch(API_URL + "/noticias", { method: "POST", body: formData });
-        if (res.ok) {
-          alert("Notícia enviada!");
-          carregarNoticias();
-        }
+        if (!res.ok) throw new Error("Erro ao enviar notícia");
+        alert("Notícia enviada!");
+        carregarNoticias();
       } catch (err) {
         console.error(err);
         alert("Erro ao enviar notícia.");
       }
     }
 
-    async function carregarNoticias() {
-      const container = document.getElementById("noticias-container");
-      const mensagem = document.getElementById("mensagem-vazia");
-
+    async function deletarNoticia(id) {
+      if (!confirm("Deseja realmente deletar esta notícia?")) return;
       try {
-        const res = await fetch(API_URL + "/noticias");
-        if (!res.ok) throw new Error("Erro no servidor");
-        const noticias = await res.json();
-
-        container.innerHTML = "";
-
-        if (!noticias.length) {
-          container.innerHTML = "<p>Nenhuma notícia disponível no momento.</p>";
-          return;
-        }
-
-        noticias.forEach(noticia => {
-          const div = document.createElement("div");
-          div.className = "noticia";
-          div.innerHTML = `
-            ${noticia.capa ? `<img src="${API_URL}${noticia.capa}" alt="Capa">` : ""}
-            <h3>${noticia.titulo}</h3>
-            <p class="autor">Por ${noticia.autor}</p>
-            <p>${noticia.conteudo || ""}</p>
-            ${noticia.pdf ? `<a href="${API_URL}${noticia.pdf}" target="_blank">📄 Ver PDF</a>` : ""}
-          `;
-
-          if (email === "0001056131@alunosesimg.com.br") {
-            const btn = document.createElement("button");
-            btn.innerText = "Deletar";
-            btn.onclick = () => deletarNoticia(noticia.id, div);
-            div.appendChild(btn);
-          }
-
-          container.appendChild(div);
-        });
-
+        const res = await fetch(API_URL + "/noticias/" + id, { method: "DELETE" });
+        if (!res.ok) throw new Error("Erro ao deletar notícia");
+        carregarNoticias();
       } catch (err) {
         console.error(err);
-        container.innerHTML = "<p>Erro ao carregar notícias. Tente novamente mais tarde.</p>";
-      }
-    }
-
-    async function deletarNoticia(id, div) {
-      if (!confirm("Tem certeza que deseja deletar?")) return;
-      const res = await fetch(API_URL + "/noticias/" + id, { method: "DELETE" });
-      if (res.ok) {
-        div.remove(); // some da tela sem recarregar
-      } else {
         alert("Erro ao deletar notícia.");
       }
     }
@@ -304,15 +294,12 @@
       formData.append("backup", file);
       try {
         const res = await fetch(API_URL + "/restore", { method: "POST", body: formData });
-        if (res.ok) {
-          alert("Backup restaurado!");
-          carregarNoticias();
-        } else {
-          alert("Erro ao restaurar backup");
-        }
+        if (!res.ok) throw new Error("Erro ao restaurar backup");
+        alert("Backup restaurado!");
+        carregarNoticias();
       } catch (err) {
         console.error(err);
-        alert("Erro ao restaurar backup");
+        alert("Erro ao restaurar backup.");
       }
     }
 

@@ -6,7 +6,6 @@
 <title>Sesi Connected - Notícias</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 <style>
-/* Mesmos estilos do seu último HTML, mantendo design */
 body { margin:0; font-family:'Montserrat',sans-serif; display:flex; flex-direction:column; align-items:center; color:#fff; min-height:100vh; background:linear-gradient(270deg,#0a1a3d,#3366ff,#001f3f,#00b050,#006400,#99ff99,#00ffff,#ffffff); background-size:1600% 1600%; animation:gradientFlow 30s ease infinite;}
 @keyframes gradientFlow {0% {background-position:0% 50%;}50% {background-position:100% 50%;}100% {background-position:0% 50%;}}
 header{margin-top:40px;text-align:center;padding:20px 40px;border-radius:20px;background:rgba(0,0,0,0.3);box-shadow:0 5px 20px rgba(0,0,0,0.5);}
@@ -30,7 +29,6 @@ footer{text-align:center;padding:25px;background:linear-gradient(90deg,#0044cc,#
 <body>
 <header><h1>Sesi Connected - Notícias</h1></header>
 
-<!-- Admin Controls -->
 <div id="admin-controls" class="container" style="display:none;">
   <h2>Administração</h2>
   <button onclick="fazerBackup()">Fazer Backup de Notícias</button>
@@ -38,7 +36,6 @@ footer{text-align:center;padding:25px;background:linear-gradient(90deg,#0044cc,#
   <button onclick="document.getElementById('restoreInput').click()">Restaurar Backup</button>
 </div>
 
-<!-- Upload -->
 <div id="upload-container" class="container" style="display:none;">
   <h2>Enviar Notícia</h2>
   <input type="text" id="titulo" placeholder="Título da notícia"><br>
@@ -51,7 +48,6 @@ footer{text-align:center;padding:25px;background:linear-gradient(90deg,#0044cc,#
   <button onclick="enviarNoticia()">Enviar</button>
 </div>
 
-<!-- Lista de Notícias -->
 <div class="container">
   <h2>Últimas Notícias</h2>
   <div id="noticias-container">
@@ -67,12 +63,9 @@ const urlParams = new URLSearchParams(window.location.search);
 const tipo = urlParams.get("tipo");
 const email = urlParams.get("email");
 
-// Mostra upload se aluno ou admin
 if (tipo === "aluno" || email === "0001056131@alunosesimg.com.br") {
   document.getElementById("upload-container").style.display = "block";
 }
-
-// Mostra admin controls
 if (email === "0001056131@alunosesimg.com.br") {
   document.getElementById("admin-controls").style.display = "block";
 }
@@ -94,8 +87,9 @@ async function carregarNoticias() {
       const div = document.createElement("div");
       div.className = "noticia";
 
-      const capaUrl = noticia.capa ? API_URL + noticia.capa : "";
-      const pdfUrl = noticia.pdf ? API_URL + noticia.pdf : "";
+      // Usando base64 direto do JSON
+      const capaUrl = noticia.capa ? `data:${noticia.capaTipo};base64,${noticia.capa}` : "";
+      const pdfUrl = noticia.pdf ? `data:${noticia.pdfTipo};base64,${noticia.pdf}` : "";
 
       div.innerHTML = `
         ${capaUrl ? `<img src="${capaUrl}" alt="Capa">` : ""}
@@ -127,10 +121,7 @@ async function enviarNoticia() {
   const pdfFile = document.getElementById("pdf")?.files[0];
   const capaFile = document.getElementById("capa")?.files[0];
 
-  if (!titulo || !autor) {
-    alert("Preencha pelo menos Título e Autor!");
-    return;
-  }
+  if (!titulo || !autor) { alert("Preencha pelo menos Título e Autor!"); return; }
 
   const formData = new FormData();
   formData.append("titulo", titulo);
